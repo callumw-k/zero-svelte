@@ -1,7 +1,5 @@
 import { createSubscriber } from 'svelte/reactivity';
 import type { Query as QueryDef, ReadonlyJSONValue, Schema, TypedView } from '@rocicorp/zero';
-import { deepClone } from './shared/deep-clone.js';
-import type { Immutable } from './shared/immutable.js';
 import type { AdvancedQuery, HumanReadable } from '@rocicorp/zero/advanced';
 import { getContext } from 'svelte';
 import type { Z } from './Z.svelte.js';
@@ -11,6 +9,22 @@ export type ResultType = 'unknown' | 'complete';
 export type QueryResultDetails = {
 	type: ResultType;
 };
+
+type Primitive = undefined | null | boolean | string | number | symbol | bigint;
+
+/**
+ * Create a deeply immutable type from a type that may contain mutable types.
+ */
+export type Immutable<T> = T extends Primitive
+	? T
+	: T extends readonly (infer U)[]
+		? ImmutableArray<U>
+		: ImmutableObject<T>;
+// This does not deal with Maps or Sets (or Date or RegExp or ...).
+
+export type ImmutableArray<T> = ReadonlyArray<Immutable<T>>;
+
+export type ImmutableObject<T> = { readonly [K in keyof T]: Immutable<T[K]> };
 
 export type QueryResult<TReturn> = readonly [HumanReadable<TReturn>, QueryResultDetails];
 
@@ -65,7 +79,9 @@ class ViewWrapper<
 		update: () => void
 	) => {
 		const data =
-			snap === undefined ? snap : (deepClone(snap as ReadonlyJSONValue) as HumanReadable<TReturn>);
+			snap === undefined
+				? snap
+				: (structuredClone(snap as ReadonlyJSONValue) as HumanReadable<TReturn>);
 		this.#snapshot = [data, { type: resultType }] as QueryResult<TReturn>;
 		update(); // Notify Svelte that the data has changed
 	};
